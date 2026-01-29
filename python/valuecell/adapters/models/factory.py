@@ -587,6 +587,13 @@ class OllamaProvider(ModelProvider):
         return bool(self.config.parameters.get("host"))
 
 
+class TavilyProvider(ModelProvider):
+    """Tavily search provider (not an LLM provider)"""
+
+    def create_model(self, model_id: Optional[str] = None, **kwargs):
+        raise ValueError("Tavily does not provide LLM models")
+
+
 class ModelFactory:
     """
     Factory for creating model instances with provider abstraction
@@ -609,6 +616,7 @@ class ModelFactory:
         "deepseek": DeepSeekProvider,
         "dashscope": DashScopeProvider,
         "ollama": OllamaProvider,
+        "tavily": TavilyProvider,
     }
 
     def __init__(self, config_manager: Optional[ConfigManager] = None):

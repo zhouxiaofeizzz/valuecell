@@ -5,9 +5,11 @@ from datetime import datetime
 from typing import Optional
 
 from agno.agent import Agent
+import httpx
 from loguru import logger
 
 from valuecell.adapters.models import create_model
+from valuecell.config.manager import get_config_manager
 
 
 async def web_search(query: str) -> str:
@@ -24,14 +26,20 @@ async def web_search(query: str) -> str:
     Returns:
         A summary of the top search results.
     """
-    # Check which provider to use based on environment configuration
-    if os.getenv("WEB_SEARCH_PROVIDER", "google").lower() == "google" and os.getenv(
-        "GOOGLE_API_KEY"
-    ):
+    provider = os.getenv("WEB_SEARCH_PROVIDER", "").lower()
+    if provider == "tavily" and os.getenv("TAVILY_API_KEY"):
+        return await _web_search_tavily(query)
+    if provider == "google" and os.getenv("GOOGLE_API_KEY"):
+        return await _web_search_google(query)
+    if os.getenv("TAVILY_API_KEY"):
+        return await _web_search_tavily(query)
+    if os.getenv("GOOGLE_API_KEY"):
         return await _web_search_google(query)
 
     # Use Perplexity Sonar via OpenRouter for web search
     # Perplexity models are optimized for web search and real-time information
+    if not os.getenv("OPENROUTER_API_KEY"):
+        return "Web search provider not configured"
     model = create_model(
         provider="openrouter",
         model_id="perplexity/sonar",
@@ -61,6 +69,47 @@ async def _web_search_google(query: str) -> str:
     )
     response = await Agent(model=model).arun(query)
     return response.content
+
+
+async def _web_search_tavily(query: str) -> str:
+    try:
+        manager = get_config_manager()
+        cfg = manager.get_provider_config("tavily")
+        api_key = os.getenv("TAVILY_API_KEY") or (cfg.api_key if cfg else None)
+        base_url = (
+            cfg.base_url if cfg and cfg.base_url else "https://api.tavily.com"
+        ).rstrip("/")
+        if not api_key:
+            return "Tavily API key not set"
+        payload = {
+            "api_key": api_key,
+            "query": query,
+            "search_depth": "basic",
+            "include_answer": True,
+            "max_results": 8,
+            "include_raw_content": False,
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(f"{base_url}/search", json=payload)
+            r.raise_for_status()
+            data = r.json()
+        answer = data.get("answer")
+        if isinstance(answer, str) and answer.strip():
+            return answer.strip()
+        results = data.get("results") or []
+        if not results:
+            return ""
+        lines = []
+        for item in results[:8]:
+            title = str(item.get("title", "")).strip()
+            url = str(item.get("url", "")).strip()
+            content = str(item.get("content", "")).strip()
+            if title and url:
+                lines.append(f"{title}\n{url}\n{content[:300]}")
+        return "\n\n".join(lines)
+    except Exception as e:
+        logger.error("Tavily search failed: {err}", err=str(e))
+        return f"Error fetching Tavily results: {str(e)}"
 
 
 async def get_breaking_news() -> str:
