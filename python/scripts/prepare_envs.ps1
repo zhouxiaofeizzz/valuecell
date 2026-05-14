@@ -8,6 +8,55 @@ function Write-Warn($message) { Write-Host $message -ForegroundColor Yellow }
 function Write-Err($message) { Write-Host $message -ForegroundColor Red }
 function Highlight-Command($command) { Write-Highlight "Running: $command" }
 
+function Get-PlaywrightBrowserRevision($browserName) {
+    $browsersJsonPath = Join-Path (Get-Location) ".venv\Lib\site-packages\playwright\driver\package\browsers.json"
+    if (-not (Test-Path $browsersJsonPath)) {
+        return $null
+    }
+
+    $browsersJson = Get-Content $browsersJsonPath -Raw | ConvertFrom-Json
+    $browser = $browsersJson.browsers | Where-Object { $_.name -eq $browserName } | Select-Object -First 1
+    if ($null -eq $browser) {
+        return $null
+    }
+
+    return $browser.revision
+}
+
+function Test-PlaywrightChromiumInstalled {
+    $chromiumRevision = Get-PlaywrightBrowserRevision "chromium"
+    $headlessRevision = Get-PlaywrightBrowserRevision "chromium-headless-shell"
+    if (-not $chromiumRevision -or -not $headlessRevision) {
+        return $false
+    }
+
+    $browserRoot = if ($env:PLAYWRIGHT_BROWSERS_PATH) {
+        $env:PLAYWRIGHT_BROWSERS_PATH
+    } else {
+        Join-Path $env:LOCALAPPDATA "ms-playwright"
+    }
+
+    $chromiumDir = Join-Path $browserRoot "chromium-$chromiumRevision"
+    $headlessDir = Join-Path $browserRoot "chromium_headless_shell-$headlessRevision"
+
+    return (
+        (Test-Path (Join-Path $chromiumDir "INSTALLATION_COMPLETE")) -and
+        (Test-Path (Join-Path $chromiumDir "chrome-win64\chrome.exe")) -and
+        (Test-Path (Join-Path $headlessDir "INSTALLATION_COMPLETE")) -and
+        (Test-Path (Join-Path $headlessDir "chrome-headless-shell-win64\chrome-headless-shell.exe"))
+    )
+}
+
+function Ensure-PlaywrightChromium {
+    if (Test-PlaywrightChromiumInstalled) {
+        Write-Success "Playwright Chromium is already installed, skipping browser download."
+        return
+    }
+
+    Highlight-Command "uv run playwright install --with-deps chromium"
+    uv run playwright install --with-deps chromium
+}
+
 # Check current directory and switch to python if needed
 $currentPath = Get-Location
 if ((Test-Path "python") -and (Test-Path "python\pyproject.toml") -and (Test-Path ".gitignore")) {
@@ -46,7 +95,7 @@ if (-not (Test-Path ".venv")) {
 }
 Highlight-Command "uv sync --group dev"
 uv sync --group dev
-uvx playwright install --with-deps chromium
+Ensure-PlaywrightChromium
 Write-Success "Main environment setup complete."
 
 Write-Success "=========================================="

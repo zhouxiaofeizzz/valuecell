@@ -42,6 +42,7 @@ export { default as OpenAiPng } from "./model-providers/openai.png";
 export { default as OpenAiCompatiblePng } from "./model-providers/openai-compatible.png";
 export { default as OpenRouterPng } from "./model-providers/openrouter.png";
 export { default as SiliconFlowPng } from "./model-providers/siliconflow.png";
+export { default as TavilyPng } from "./model-providers/tavily.png";
 
 export { default as TrendPng } from "./trend.png";
 export { default as TrendDarkPng } from "./trend-dark.png";

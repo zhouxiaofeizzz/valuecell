@@ -15,6 +15,7 @@ import {
   OpenAiPng,
   OpenRouterPng,
   SiliconFlowPng,
+  TavilyPng,
   ValueCellAgentPng,
 } from "@/assets/png";
 
@@ -28,6 +29,7 @@ export const MODEL_PROVIDER_ICONS = {
   azure: AzurePng,
   dashscope: DashScopePng,
   ollama: OllamaPng,
+  tavily: TavilyPng,
 };
 
 export const EXCHANGE_ICONS = {
